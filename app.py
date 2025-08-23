@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from io import StringIO, BytesIO
 import time
-import base64
+from io import StringIO
 
 # Conversion constants
 MARLA_PER_SARSHAI = 9
@@ -30,6 +28,11 @@ def convert_from_sarshai(total_sarshai):
 
 def process_data(df):
     """Process the dataframe and calculate totals"""
+    # Check for required columns
+    required_cols = {"Kanal", "Marla"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError("Missing required columns: Kanal and Marla")
+
     # Ensure numeric columns
     df['Kanal'] = pd.to_numeric(df['Kanal'], errors='coerce').fillna(0)
     df['Marla'] = pd.to_numeric(df['Marla'], errors='coerce').fillna(0)
@@ -43,7 +46,7 @@ def process_data(df):
     # Convert back to Kila, Kanal, Marla, Sarshai
     kila, kanal, marla, sarshai = convert_from_sarshai(total_sarshai)
     
-    return df, kila, kanal, marla, sarshai
+    return df, kila, kanal, marla, sarshai, total_sarshai
 
 def main():
     st.set_page_config(page_title="Jamabandi Land Area Converter", layout="wide", page_icon="🏞️")
@@ -82,18 +85,17 @@ def main():
         
         with st.expander("📝 Click to copy sample format"):
             st.code(sample_data)
-            if st.button("Copy Sample Format", key="copy_sample"):
-                st.session_state.pasted_data = sample_data
-                st.success("Sample format copied to input area!")
         
         pasted_data = st.text_area("Paste your Jamabandi data here:", 
                                   height=200,
-                                  value=st.session_state.get('pasted_data', ''))
+                                  value=st.session_state.get('pasted_data', sample_data))
         
         if st.button("Process Data", type="primary", key="process_paste"):
             if pasted_data:
                 try:
-                    df = pd.read_csv(StringIO(pasted_data), sep='\t', encoding='utf-8')
+                    # Auto-detect delimiter
+                    df = pd.read_csv(StringIO(pasted_data), sep=None, engine="python")
+                    st.session_state.pasted_data = pasted_data
                     st.success("✅ Data parsed successfully!")
                 except Exception as e:
                     st.error(f"❌ Error parsing data: {e}")
@@ -117,14 +119,18 @@ def main():
         # Show processing animation
         with st.spinner("Processing data..."):
             time.sleep(1)  # Simulate processing time
-            processed_df, kila, kanal, marla, sarshai = process_data(df)
+            try:
+                processed_df, kila, kanal, marla, sarshai, total_sarshai = process_data(df)
+            except ValueError as ve:
+                st.error(str(ve))
+                return
         
         # Display results in tabs
         tab1, tab2 = st.tabs(["📊 Data Preview", "📈 Summary"])
         
         with tab1:
             st.subheader("Processed Data")
-            st.dataframe(processed_df, use_container_width=True)
+            st.dataframe(processed_df.style.highlight_max(axis=0), use_container_width=True)
             
             # Download CSV
             csv_data = processed_df.to_csv(index=False, encoding='utf-8')
@@ -139,7 +145,7 @@ def main():
         with tab2:
             st.subheader("Total Land Area Summary")
             
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
                 st.metric("Kila", f"{kila:,}", help="1 Kila = 8 Kanal")
             with col2:
@@ -148,6 +154,8 @@ def main():
                 st.metric("Marla", f"{marla:,}", help="1 Marla = 9 Sarshai")
             with col4:
                 st.metric("Sarshai", f"{sarshai:,}")
+            with col5:
+                st.metric("Total Sarshai", f"{total_sarshai:,}")
             
             st.success(f"**Total Area:** {kila} Kila, {kanal} Kanal, {marla} Marla, {sarshai} Sarshai")
 
