@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from io import BytesIO, StringIO  # Added StringIO here
+from io import StringIO, BytesIO
 import time
+import base64
 
 # Conversion constants
 MARLA_PER_SARSHAI = 9
@@ -44,37 +45,6 @@ def process_data(df):
     
     return df, kila, kanal, marla, sarshai
 
-def create_excel_file(df, kila, kanal, marla, sarshai):
-    """Create Excel file with formatted output"""
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        # Write main data
-        df.to_excel(writer, sheet_name='Land Records', index=False)
-        
-        # Create summary sheet
-        summary_data = {
-            'Unit': ['Kila', 'Kanal', 'Marla', 'Sarshai'],
-            'Value': [kila, kanal, marla, sarshai]
-        }
-        summary_df = pd.DataFrame(summary_data)
-        summary_df.to_excel(writer, sheet_name='Summary', index=False)
-        
-        # Get workbook and worksheet objects
-        workbook = writer.book
-        worksheet = writer.sheets['Land Records']
-        
-        # Add formatting
-        format_currency = workbook.add_format({'num_format': '#,##0'})
-        
-        # Apply formatting to numeric columns
-        if 'Kanal' in df.columns and 'Marla' in df.columns:
-            kanal_col = df.columns.get_loc('Kanal') + 1
-            marla_col = df.columns.get_loc('Marla') + 1
-            worksheet.set_column(kanal_col, kanal_col, 12, format_currency)
-            worksheet.set_column(marla_col, marla_col, 12, format_currency)
-    
-    return output.getvalue()
-
 def main():
     st.set_page_config(page_title="Jamabandi Land Area Converter", layout="wide", page_icon="🏞️")
     st.title("🏞️ Jamabandi Land Area Calculator")
@@ -87,7 +57,7 @@ def main():
         1. **Paste data** from Jamabandi.nic.in or **upload CSV**
         2. Ensure columns include **Kanal** and **Marla**
         3. Click **Process Data**
-        4. **Download** in your preferred format
+        4. **Download** results as CSV
         """)
         
         st.header("📊 Expected Format")
@@ -123,7 +93,7 @@ def main():
         if st.button("Process Data", type="primary", key="process_paste"):
             if pasted_data:
                 try:
-                    df = pd.read_csv(pd.compat.StringIO(pasted_data), sep='\t', encoding='utf-8')
+                    df = pd.read_csv(StringIO(pasted_data), sep='\t', encoding='utf-8')
                     st.success("✅ Data parsed successfully!")
                 except Exception as e:
                     st.error(f"❌ Error parsing data: {e}")
@@ -150,11 +120,21 @@ def main():
             processed_df, kila, kanal, marla, sarshai = process_data(df)
         
         # Display results in tabs
-        tab1, tab2, tab3 = st.tabs(["📊 Data Preview", "📈 Summary", "💾 Export Options"])
+        tab1, tab2 = st.tabs(["📊 Data Preview", "📈 Summary"])
         
         with tab1:
             st.subheader("Processed Data")
             st.dataframe(processed_df, use_container_width=True)
+            
+            # Download CSV
+            csv_data = processed_df.to_csv(index=False, encoding='utf-8')
+            st.download_button(
+                label="📥 Download Processed Data (CSV)",
+                data=csv_data,
+                file_name="jamabandi_data.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
         
         with tab2:
             st.subheader("Total Land Area Summary")
@@ -170,35 +150,6 @@ def main():
                 st.metric("Sarshai", f"{sarshai:,}")
             
             st.success(f"**Total Area:** {kila} Kila, {kanal} Kanal, {marla} Marla, {sarshai} Sarshai")
-        
-        with tab3:
-            st.subheader("Download Processed Data")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # CSV Download
-                csv_data = processed_df.to_csv(index=False, encoding='utf-8')
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv_data,
-                    file_name="jamabandi_data.csv",
-                    mime="text/csv",
-                    help="Download as CSV file"
-                )
-            
-            with col2:
-                # Excel Download
-                excel_data = create_excel_file(processed_df, kila, kanal, marla, sarshai)
-                st.download_button(
-                    label="💾 Download Excel",
-                    data=excel_data,
-                    file_name="jamabandi_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    help="Download as Excel file with formatting"
-                )
-            
-            st.info("💡 Choose the format that works best for your needs!")
 
 if __name__ == "__main__":
     main()
