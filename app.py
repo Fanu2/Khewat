@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from io import BytesIO
-import docx
-from docx.shared import Inches
 import time
 
 # Conversion constants
@@ -75,55 +73,6 @@ def create_excel_file(df, kila, kanal, marla, sarshai):
             worksheet.set_column(kanal_col, kanal_col, 12, format_currency)
             worksheet.set_column(marla_col, marla_col, 12, format_currency)
     
-    return output.getvalue()
-
-def create_word_document(df, kila, kanal, marla, sarshai):
-    """Create Word document with formatted output"""
-    doc = docx.Document()
-    
-    # Add title
-    doc.add_heading('Jamabandi Land Records Report', 0)
-    
-    # Add timestamp
-    doc.add_paragraph(f"Generated on: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    doc.add_paragraph()
-    
-    # Add summary
-    doc.add_heading('Total Land Area Summary', level=2)
-    summary_table = doc.add_table(rows=5, cols=2)
-    summary_table.style = 'Table Grid'
-    
-    # Header row
-    summary_table.cell(0, 0).text = 'Unit'
-    summary_table.cell(0, 1).text = 'Value'
-    
-    # Data rows
-    units = ['Kila', 'Kanal', 'Marla', 'Sarshai']
-    values = [kila, kanal, marla, sarshai]
-    
-    for i, (unit, value) in enumerate(zip(units, values), 1):
-        summary_table.cell(i, 0).text = unit
-        summary_table.cell(i, 1).text = str(value)
-    
-    doc.add_paragraph()
-    
-    # Add data table
-    doc.add_heading('Detailed Land Records', level=2)
-    data_table = doc.add_table(rows=len(df) + 1, cols=len(df.columns))
-    data_table.style = 'Table Grid'
-    
-    # Add headers
-    for j, col in enumerate(df.columns):
-        data_table.cell(0, j).text = str(col)
-    
-    # Add data rows
-    for i, row in enumerate(df.itertuples(), 1):
-        for j, value in enumerate(row[1:], 0):
-            data_table.cell(i, j).text = str(value)
-    
-    # Save to BytesIO
-    output = BytesIO()
-    doc.save(output)
     return output.getvalue()
 
 def main():
@@ -225,7 +174,7 @@ def main():
         with tab3:
             st.subheader("Download Processed Data")
             
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             
             with col1:
                 # CSV Download
@@ -247,17 +196,6 @@ def main():
                     file_name="jamabandi_data.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     help="Download as Excel file with formatting"
-                )
-            
-            with col3:
-                # Word Download
-                word_data = create_word_document(processed_df, kila, kanal, marla, sarshai)
-                st.download_button(
-                    label="📄 Download Word",
-                    data=word_data,
-                    file_name="jamabandi_report.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    help="Download as Word document report"
                 )
             
             st.info("💡 Choose the format that works best for your needs!")
