@@ -8,65 +8,43 @@ MARLA_PER_SARSHAI = 9
 KANAL_PER_MARLA = 20
 KILA_PER_KANAL = 8
 
-def convert_to_standard_units(kanal, marla):
-    """Convert Kanal and Marla to total Sarshai"""
-    total_sarshai = (kanal * KANAL_PER_MARLA * MARLA_PER_SARSHAI) + (marla * MARLA_PER_SARSHAI)
-    return total_sarshai
-
-def convert_from_sarshai(total_sarshai):
-    """Convert total Sarshai back to Kila, Kanal, Marla, Sarshai"""
+def convert_totals(total_kanal, total_marla):
+    """Convert total Kanal & Marla to Kila, Kanal, Marla, Sarshai"""
+    # Convert everything to Sarshai only once
+    total_sarshai = (total_kanal * KANAL_PER_MARLA * MARLA_PER_SARSHAI) + (total_marla * MARLA_PER_SARSHAI)
+    
     kila = total_sarshai // (KILA_PER_KANAL * KANAL_PER_MARLA * MARLA_PER_SARSHAI)
     remainder = total_sarshai % (KILA_PER_KANAL * KANAL_PER_MARLA * MARLA_PER_SARSHAI)
-
+    
     kanal = remainder // (KANAL_PER_MARLA * MARLA_PER_SARSHAI)
     remainder %= (KANAL_PER_MARLA * MARLA_PER_SARSHAI)
-
+    
     marla = remainder // MARLA_PER_SARSHAI
     sarshai = remainder % MARLA_PER_SARSHAI
-
+    
     return kila, kanal, marla, sarshai
 
-def process_data(df):
-    """Process the dataframe and calculate totals"""
-    # Ensure numeric columns
-    df['Kanal'] = pd.to_numeric(df['Kanal'], errors='coerce').fillna(0)
-    df['Marla'] = pd.to_numeric(df['Marla'], errors='coerce').fillna(0)
-
-    # Raw totals
-    total_kanal = df['Kanal'].sum()
-    total_marla = df['Marla'].sum()
-
-    # Calculate total area in Sarshai
-    df['Total_Sarshai'] = df.apply(lambda row: convert_to_standard_units(row['Kanal'], row['Marla']), axis=1)
-
-    # Calculate grand total in Sarshai
-    total_sarshai = df['Total_Sarshai'].sum()
-
-    # Convert back to Kila, Kanal, Marla, Sarshai
-    kila, kanal, marla, sarshai = convert_from_sarshai(total_sarshai)
-
-    return df, total_kanal, total_marla, kila, kanal, marla, sarshai
-
 def main():
-    st.set_page_config(page_title="Jamabandi Land Area Converter", layout="wide", page_icon="🏞️")
+    st.set_page_config(page_title="Jamabandi Land Area Calculator", layout="wide", page_icon="🏞️")
     st.title("🏞️ Jamabandi Land Area Calculator")
-    st.markdown("Convert land area data from Kanal/Marla into totals (Kila/Kanal/Marla/Sarshai).")
+    st.markdown("Convert Jamabandi land area data and see raw totals & converted totals.")
 
-    # Sidebar
+    # Sidebar instructions
     with st.sidebar:
         st.header("ℹ️ Instructions")
         st.markdown("""
         1. **Paste data** from Jamabandi.nic.in or **upload CSV**
         2. Ensure columns include **Kanal** and **Marla**
         3. Click **Process Data**
-        4. **Download** results as CSV
+        4. View **Raw Totals** and **Converted Totals**
         """)
+        
         st.header("📊 Expected Format")
         st.code("""Khewat  Khatoni  Khasra    Type_Land  Irrigation  Kanal  Marla
 594    846      0//303    प्लाट                0       19
 594    846      0//492    गढडे                0       3""")
 
-    # Input options
+    # Input method
     input_method = st.radio("Choose input method:", ["Paste Table Data", "Upload CSV File"], horizontal=True)
     df = None
 
@@ -75,7 +53,9 @@ def main():
         sample_data = """Khewat\tKhatoni\tKhasra\tType of Land\tSource of Irrigation\tKanal\tMarla
 594\t846\t0//303\tप्लाट\t\t0\t19
 594\t846\t0//492\tगढडे\t\t0\t3"""
+        
         pasted_data = st.text_area("Paste your Jamabandi data here:", height=200, value=sample_data)
+        
         if st.button("Process Data", type="primary", key="process_paste"):
             if pasted_data:
                 try:
@@ -85,10 +65,11 @@ def main():
                     st.error(f"❌ Error parsing data: {e}")
             else:
                 st.warning("⚠️ Please paste some data first")
-
-    else:
+    
+    else:  # File upload
         st.subheader("📤 Upload CSV File")
-        uploaded_file = st.file_uploader("Choose a CSV file", type="csv", help="Upload CSV file with Kanal and Marla columns")
+        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+        
         if uploaded_file and st.button("Process Data", type="primary", key="process_upload"):
             try:
                 df = pd.read_csv(uploaded_file, encoding='utf-8')
@@ -99,22 +80,19 @@ def main():
     if df is not None:
         with st.spinner("Processing data..."):
             time.sleep(1)
-            processed_df, total_kanal, total_marla, kila, kanal, marla, sarshai = process_data(df)
-
+            # Raw totals
+            total_kanal = df['Kanal'].sum()
+            total_marla = df['Marla'].sum()
+            # Converted totals
+            kila, kanal, marla, sarshai = convert_totals(total_kanal, total_marla)
+        
+        # Display in tabs
         tab1, tab2 = st.tabs(["📊 Data Preview", "📈 Summary"])
-
+        
         with tab1:
             st.subheader("Processed Data")
-            st.dataframe(processed_df, use_container_width=True)
-            csv_data = processed_df.to_csv(index=False, encoding='utf-8')
-            st.download_button(
-                label="📥 Download Processed Data (CSV)",
-                data=csv_data,
-                file_name="jamabandi_data.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-
+            st.dataframe(df, use_container_width=True)
+        
         with tab2:
             st.subheader("Raw Totals")
             col1, col2 = st.columns(2)
